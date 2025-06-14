@@ -2,45 +2,31 @@ import asyncio
 from playwright.async_api import async_playwright
 import os
 
-EMAIL = os.environ["TONTON_EMAIL"]
-PASSWORD = os.environ["TONTON_PASSWORD"]
-
 async def run():
+    email = os.getenv("TONTON_EMAIL")
+    password = os.getenv("TONTON_PASSWORD")
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
         page = await context.new_page()
 
         await page.goto("https://www.tonton.com.my/")
-        await page.wait_for_timeout(5000)  # bagi masa loading penuh
+        await page.click("text=Login")
+        await page.fill('input[type="email"]', email)
+        await page.fill('input[type="password"]', password)
+        await page.click('button:has-text("Log In")')
+        await page.wait_for_url("https://www.tonton.com.my/home")
 
-        # Cari button login guna selector alternatif
-        await page.wait_for_selector("a[href='/login']", timeout=20000)
-        await page.click("a[href='/login']")
+        await page.goto("https://www.tonton.com.my/live-tv/tv3")
+        await page.wait_for_selector("video", timeout=10000)
 
-        await page.wait_for_selector('input[name="email"]', timeout=20000)
-        await page.fill('input[name="email"]', EMAIL)
-        await page.fill('input[name="password"]', PASSWORD)
-        await page.click('button[type="submit"]')
+        m3u8_url = await page.evaluate('''() => {
+            const video = document.querySelector("video");
+            return video ? video.src : null;
+        }''')
 
-        await page.wait_for_timeout(5000)  # tunggu lepas login
-
-        await page.goto("https://www.tonton.com.my/live-tv")
-        await page.wait_for_selector('text=TV3', timeout=15000)
-        await page.click('text=TV3')
-
-        m3u8_link = None
-        async def handle_request(request):
-            nonlocal m3u8_link
-            if "master_1080.m3u8" in request.url:
-                m3u8_link = request.url
-
-        page.on("request", handle_request)
-        await page.wait_for_timeout(10000)
+        print(f"[TV3] {m3u8_url}")
         await browser.close()
-
-        if m3u8_link:
-            with open("tv3.txt", "w") as f:
-                f.write(m3u8_link)
 
 asyncio.run(run())
