@@ -1,0 +1,38 @@
+name: Auto Grab TV3 Link
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  grab-link:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install playwright
+        playwright install
+
+    - name: Run grabber
+      env:
+        TONTON_EMAIL: ${{ secrets.TONTON_EMAIL }}
+        TONTON_PASSWORD: ${{ secrets.TONTON_PASSWORD }}
+      run: python tonton_grabber.py
+
+    - name: Commit & Push TV3 Link
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "actions@github.com"
+        git add tv3.txt
+        git commit -m "Update link" || echo "No changes"
+        git push
