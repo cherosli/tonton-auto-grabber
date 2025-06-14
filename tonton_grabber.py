@@ -1,43 +1,44 @@
-
 import os
 import asyncio
 from playwright.async_api import async_playwright
 
-TONTON_EMAIL = os.getenv("TONTON_EMAIL")
-TONTON_PASSWORD = os.getenv("TONTON_PASSWORD")
+EMAIL = os.getenv("TONTON_EMAIL")
+PASSWORD = os.getenv("TONTON_PASSWORD")
 
 async def run():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
-        page = await context.new_page()
+    print("[INFO] Launching browser...")
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+            context = await browser.new_context()
+            page = await context.new_page()
+            print("[INFO] Going to login page...")
+            await page.goto("https://www.tonton.com.my/login", timeout=60000)
 
-        print("🔄 Membuka halaman login Tonton...")
-        await page.goto("https://www.tonton.com.my/login")
+            print("[INFO] Typing credentials...")
+            await page.fill('input[name="email"]', EMAIL)
+            await page.fill('input[name="password"]', PASSWORD)
+            await page.click("text=Login")
+            await page.wait_for_load_state('networkidle', timeout=60000)
 
-        await page.fill('input[name="email"]', TONTON_EMAIL)
-        await page.fill('input[name="password"]', TONTON_PASSWORD)
-        await page.click('button[type="submit"]')
+            print("[INFO] Navigating to Live TV TV3...")
+            await page.goto("https://www.tonton.com.my/live-tv/tv3", timeout=60000)
+            await page.wait_for_timeout(5000)
 
-        print("⏳ Tunggu redirect lepas login...")
-        await page.wait_for_timeout(5000)
+            print("[INFO] Extracting m3u8 link...")
+            frame = page.main_frame
+            content = await frame.content()
+            m3u8_lines = [line for line in content.split('"') if "master_1080.m3u8" in line]
 
-        print("🔄 Pergi ke halaman Live TV (TV3)...")
-        await page.goto("https://www.tonton.com.my/live-tv/tv3")
+            if m3u8_lines:
+                with open("tv3_latest.m3u8.txt", "w") as f:
+                    f.write(m3u8_lines[0])
+                print("[SUCCESS] Link grabbed:", m3u8_lines[0])
+            else:
+                print("[FAIL] m3u8 link not found.")
 
-        print("⏳ Tunggu video player load...")
-        await page.wait_for_selector("video", timeout=10000)
-
-        m3u8_url = await page.eval_on_selector("video", "el => el.src")
-
-        if m3u8_url:
-            print(f"✅ Link berjaya dapat: {m3u8_url}")
-        else:
-            print("❌ Gagal dapatkan link video.")
-
-        with open("tv3.m3u8.txt", "w") as f:
-            f.write(m3u8_url if m3u8_url else "FAILED")
-
-        await browser.close()
+            await browser.close()
+    except Exception as e:
+        print("[ERROR]", e)
 
 asyncio.run(run())
