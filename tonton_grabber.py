@@ -12,14 +12,21 @@ async def run():
         page = await context.new_page()
 
         await page.goto("https://www.tonton.com.my/")
-        await page.click("text=Login")
-        await page.wait_for_selector('input[name="email"]')
+        await page.wait_for_timeout(5000)  # bagi masa loading penuh
+
+        # Cari button login guna selector alternatif
+        await page.wait_for_selector("a[href='/login']", timeout=20000)
+        await page.click("a[href='/login']")
+
+        await page.wait_for_selector('input[name="email"]', timeout=20000)
         await page.fill('input[name="email"]', EMAIL)
         await page.fill('input[name="password"]', PASSWORD)
         await page.click('button[type="submit"]')
-        await page.wait_for_timeout(5000)
+
+        await page.wait_for_timeout(5000)  # tunggu lepas login
 
         await page.goto("https://www.tonton.com.my/live-tv")
+        await page.wait_for_selector('text=TV3', timeout=15000)
         await page.click('text=TV3')
 
         m3u8_link = None
